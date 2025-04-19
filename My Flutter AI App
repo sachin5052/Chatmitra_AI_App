@@ -1,0 +1,131 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+void main() {
+  runApp(ChatMitraAI());
+}
+
+class ChatMitraAI extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'ChatMitra AI',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.deepPurple,
+      ),
+      home: ChatScreen(),
+    );
+  }
+}
+
+class ChatScreen extends StatefulWidget {
+  @override
+  _ChatScreenState createState() => _ChatScreenState();
+}
+
+class _ChatScreenState extends State<ChatScreen> {
+  final TextEditingController _controller = TextEditingController();
+  List<Map<String, String>> messages = [];
+
+  Future<String> getChatResponse(String prompt) async {
+    const apiKey = "YOUR_OPENAI_API_KEY";  // यहाँ अपनी OpenAI API Key डालना
+    const url = "https://api.openai.com/v1/completions";
+
+    final response = await http.post(
+      Uri.parse(url),
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer $apiKey",
+      },
+      body: jsonEncode({
+        "model": "text-davinci-003",
+        "prompt": prompt,
+        "max_tokens": 100,
+        "temperature": 0.7,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      var data = jsonDecode(response.body);
+      return data['choices'][0]['text'].trim();
+    } else {
+      return "Error: Unable to get response.";
+    }
+  }
+
+  void sendMessage() async {
+    String input = _controller.text;
+    if (input.trim().isEmpty) return;
+
+    setState(() {
+      messages.add({"sender": "You", "text": input});
+      _controller.clear();
+    });
+
+    String reply;
+    try {
+      reply = await getChatResponse(input);
+    } catch (e) {
+      reply = "Offline Mode: Sorry, no internet or OpenAI API Key missing.";
+    }
+
+    setState(() {
+      messages.add({"sender": "ChatMitra", "text": reply});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("ChatMitra AI"),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              itemCount: messages.length,
+              itemBuilder: (context, index) {
+                final message = messages[index];
+                return ListTile(
+                  title: Text(
+                    message['sender']!,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: message['sender'] == "You"
+                          ? Colors.deepPurple
+                          : Colors.green,
+                    ),
+                  ),
+                  subtitle: Text(message['text']!),
+                );
+              },
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    decoration: InputDecoration(
+                      hintText: "Type your message...",
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.send, color: Colors.deepPurple),
+                  onPressed: sendMessage,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
